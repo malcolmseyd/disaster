@@ -14,8 +14,8 @@
   "contributes": {
     "commands": [
       {
-        "command": "disaster.helloWorld",
-        "title": "Hello World"
+        "command": "disaster.disassembleCurrentFile",
+        "title": "Disaster: Disassemble current file"
       }
     ]
   },
