@@ -1,51 +1,110 @@
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in your code below
 import * as vscode from "vscode";
-import { execSync } from "child_process";
+import { execSync } from "node:child_process";
+import { env } from "node:process";
+import { statSync, mkdirSync } from "node:fs";
 
-// This method is called when your extension is activated
-// Your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
+  console.log("Initializing Disaster...");
 
-  // Use the console to output diagnostic information (console.log) and errors (console.error)
-  // This line of code will only be executed once when your extension is activated
-  console.log('Congratulations, your extension "disaster" is now active!');
+  const TMPDIR = "/tmp/disaster";
+  if (!statSync(TMPDIR, { throwIfNoEntry: false })?.isDirectory()) {
+    mkdirSync(TMPDIR);
+    console.log(`Created ${TMPDIR} directory`);
+  } else {
+    console.log(`Using ${TMPDIR} directory`);
+  }
 
-  // The command has been defined in the package.json file
-  // Now provide the implementation of the command with registerCommand
-  // The commandId parameter must match the command field in package.json
+  const CC = env.CC || "cc";
+  const CFLAGS = env.CFLAGS || "-g";
+  console.log("Environment variables initialized");
+
   let disposable = vscode.commands.registerCommand(
     "disaster.disassembleCurrentFile",
     async () => {
+      // get info about the current file
       const file = vscode.window.activeTextEditor?.document;
+      const filePosition = vscode.window.activeTextEditor?.selection.active;
       if (!file || file.isUntitled) {
         vscode.window.showErrorMessage("No file open");
         return;
       }
 
-      let command = "objdump -M intel --line-numbers --no-show-raw-insn";
+      // disassemble the file (or compile it first)
+      let content = "";
+      let objectFile = "";
       if (file.languageId === "code-text-binary") {
-        command = [command, "--disassemble", "-S", file.fileName].join(" ");
+        let cmd = `objdump --disassemble -M intel --line-numbers --no-show-raw-insn -S ${file.fileName}`;
+        content = execSync(cmd).toString();
+      } else if (file.languageId === "c") {
+        const basename = getBasename(file.fileName);
+        objectFile = `${TMPDIR}/${basename}.o`;
+
+        let cmd = `${CC} ${CFLAGS} -c ${file.fileName} -o ${TMPDIR}/${basename}.o`;
+        execSync(cmd);
+
+        cmd = `objdump --disassemble -M intel --line-numbers --no-show-raw-insn -S ${objectFile}`;
+        content = execSync(cmd).toString();
       } else {
         vscode.window.showErrorMessage("Unsupported file type");
         return;
       }
 
-      console.log("disassembling: ", command);
+      // pick a best-guess syntax highlighter
+      const languages = (await vscode.languages.getLanguages()).filter((x) =>
+        x.includes("asm")
+      );
+      let language: string | undefined;
+      if (languages.includes("nasm")) {
+        language = "nasm";
+      } else {
+        language = languages[0];
+      }
 
-      const cmdResult = execSync(command).toString();
-
+      // put the disassembly in a new tab
       const newFile = await vscode.workspace.openTextDocument({
-        content: cmdResult,
+        language,
+        content,
       });
       await vscode.window.showTextDocument(newFile);
       await vscode.commands.executeCommand(
         "workbench.action.moveEditorToNextGroup"
       );
+
+      if (file.languageId !== "code-text-binary") {
+        // scroll to relevant line
+        if (filePosition) {
+          const line = filePosition.line;
+          const needle = `${file.fileName}:${line + 1}`;
+          console.log(`Searching for ${needle}`);
+          const i = content.split("\n").findIndex((line, index) => {
+            if (line.includes(needle)) {
+              vscode.commands.executeCommand("revealLine", {
+                lineNumber: index,
+                at: "top",
+              });
+              return true;
+            }
+          });
+          console.log("Found line at index", i);
+          if (i === -1) {
+            vscode.window.showErrorMessage(
+              "Could not find matching line in output"
+            );
+          }
+        }
+
+        // remove temporary object
+        execSync(`rm ${objectFile}`);
+      }
     }
   );
 
   context.subscriptions.push(disposable);
+  console.log("Command registered");
+
+  function getBasename(path: string): string {
+    return path.split("/").at(-1)?.split(".").slice(0, -1).join(".") ?? "";
+  }
 }
 
 // This method is called when your extension is deactivated
