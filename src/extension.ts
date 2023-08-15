@@ -1,7 +1,9 @@
 import * as vscode from "vscode";
-import { execSync } from "node:child_process";
+import { execSync, spawnSync } from "node:child_process";
 import { env } from "node:process";
 import { statSync, mkdirSync } from "node:fs";
+
+const SUPPORTED_LANGUAGE_IDS = ["c", "code-text-binary"];
 
 export function activate(context: vscode.ExtensionContext) {
   console.log("Initializing Disaster...");
@@ -9,9 +11,9 @@ export function activate(context: vscode.ExtensionContext) {
   const TMPDIR = "/tmp/disaster";
   if (!statSync(TMPDIR, { throwIfNoEntry: false })?.isDirectory()) {
     mkdirSync(TMPDIR);
-    console.log(`Created ${TMPDIR} directory`);
+    console.log(`Created ${TMPDIR} directory for temporary files`);
   } else {
-    console.log(`Using ${TMPDIR} directory`);
+    console.log(`Using ${TMPDIR} directory for temporary files`);
   }
 
   const CC = env.CC || "cc";
@@ -21,6 +23,8 @@ export function activate(context: vscode.ExtensionContext) {
   let disposable = vscode.commands.registerCommand(
     "disaster.disassembleCurrentFile",
     async () => {
+      const messageChannel = vscode.window.createOutputChannel("Disaster");
+
       // get info about the current file
       const file = vscode.window.activeTextEditor?.document;
       const filePosition = vscode.window.activeTextEditor?.selection.active;
@@ -29,25 +33,35 @@ export function activate(context: vscode.ExtensionContext) {
         return;
       }
 
-      // disassemble the file (or compile it first)
-      let content = "";
-      let objectFile = "";
-      if (file.languageId === "code-text-binary") {
-        let cmd = `objdump --disassemble -M intel --line-numbers --no-show-raw-insn -S ${file.fileName}`;
-        content = execSync(cmd).toString();
-      } else if (file.languageId === "c") {
-        const basename = getBasename(file.fileName);
-        objectFile = `${TMPDIR}/${basename}.o`;
-
-        let cmd = `${CC} ${CFLAGS} -c ${file.fileName} -o ${TMPDIR}/${basename}.o`;
-        execSync(cmd);
-
-        cmd = `objdump --disassemble -M intel --line-numbers --no-show-raw-insn -S ${objectFile}`;
-        content = execSync(cmd).toString();
-      } else {
+      // validation
+      if (!SUPPORTED_LANGUAGE_IDS.includes(file.languageId)) {
         vscode.window.showErrorMessage("Unsupported file type");
         return;
       }
+      if (file.isDirty) {
+        vscode.window.showErrorMessage("File is not saved");
+        return;
+      }
+
+      let objectPath =
+        file.languageId === "code-text-binary"
+          ? file.fileName
+          : getObjectPath(file.fileName);
+
+      // compile
+      if (file.languageId === "c") {
+        messageChannel.appendLine(`Compiling ${file.fileName}...`);
+        let cmd = `${CC} ${CFLAGS} -c ${file.fileName} -o ${objectPath}`;
+        try {
+          compile(cmd, messageChannel);
+        } catch {
+          return;
+        }
+      }
+
+      // disassemble
+      messageChannel.append(`Disassembling ${objectPath}...`);
+      let content = disassemble(objectPath);
 
       // pick a best-guess syntax highlighter
       const languages = (await vscode.languages.getLanguages()).filter((x) =>
@@ -94,7 +108,7 @@ export function activate(context: vscode.ExtensionContext) {
         }
 
         // remove temporary object
-        execSync(`rm ${objectFile}`);
+        execSync(`rm ${objectPath}`);
       }
     }
   );
@@ -104,6 +118,28 @@ export function activate(context: vscode.ExtensionContext) {
 
   function getBasename(path: string): string {
     return path.split("/").at(-1)?.split(".").slice(0, -1).join(".") ?? "";
+  }
+
+  function getObjectPath(path: string): string {
+    return `${TMPDIR}/${getBasename(path)}.o`;
+  }
+
+  function compile(command: string, messageChannel: vscode.OutputChannel) {
+    try {
+      const compileOutput = execSync(command);
+      messageChannel.appendLine(compileOutput.toString());
+    } catch (e: any) {
+      messageChannel.appendLine(e.stdout.toString());
+      messageChannel.appendLine(e.stderr.toString());
+      vscode.window.showErrorMessage("Compilation failed");
+      messageChannel.show();
+      throw e;
+    }
+  }
+
+  function disassemble(objectPath: string) {
+    const cmd = `objdump --disassemble -M intel --line-numbers --no-show-raw-insn -S ${objectPath}`;
+    return execSync(cmd).toString();
   }
 }
 
