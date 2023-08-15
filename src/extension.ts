@@ -3,7 +3,7 @@ import { execSync, spawnSync } from "node:child_process";
 import { env } from "node:process";
 import { statSync, mkdirSync } from "node:fs";
 
-const SUPPORTED_LANGUAGE_IDS = ["c", "code-text-binary"];
+const SUPPORTED_LANGUAGE_IDS = ["c", "cpp", "code-text-binary"];
 
 export function activate(context: vscode.ExtensionContext) {
   console.log("Initializing Disaster...");
@@ -18,6 +18,8 @@ export function activate(context: vscode.ExtensionContext) {
 
   const CC = env.CC || "cc";
   const CFLAGS = env.CFLAGS || "-g";
+  const CXX = env.CXX || "c++";
+  const CXXFLAGS = env.CXXFLAGS || "-g";
   console.log("Environment variables initialized");
 
   let disposable = vscode.commands.registerCommand(
@@ -49,11 +51,19 @@ export function activate(context: vscode.ExtensionContext) {
           : getObjectPath(file.fileName);
 
       // compile
-      if (file.languageId === "c") {
+      let compileCommand: string | undefined;
+      if (file.languageId === "code-text-binary") {
+        messageChannel.appendLine(`Using ${file.fileName} as object file`);
+      } else if (file.languageId === "c") {
+        compileCommand = `${CC} ${CFLAGS} -c ${file.fileName} -o ${objectPath}`;
+      } else if (file.languageId === "cpp") {
+        compileCommand = `${CXX} ${CXXFLAGS} -c ${file.fileName} -o ${objectPath}`;
+      }
+
+      if (compileCommand) {
         messageChannel.appendLine(`Compiling ${file.fileName}...`);
-        let cmd = `${CC} ${CFLAGS} -c ${file.fileName} -o ${objectPath}`;
         try {
-          compile(cmd, messageChannel);
+          compile(compileCommand, messageChannel);
         } catch {
           return;
         }
@@ -84,6 +94,7 @@ export function activate(context: vscode.ExtensionContext) {
         "workbench.action.moveEditorToNextGroup"
       );
 
+      // clean up
       if (file.languageId !== "code-text-binary") {
         // scroll to relevant line
         if (filePosition) {
