@@ -149,7 +149,7 @@ export function activate(context: vscode.ExtensionContext) {
   }
 
   function disassemble(objectPath: string) {
-    const cmd = `objdump --disassemble -M intel --line-numbers --no-show-raw-insn -S ${objectPath}`;
+    const cmd = `objdump --disassemble --demangle=auto  -M intel --line-numbers --no-show-raw-insn -S ${objectPath}`;
     return execSync(cmd).toString();
   }
 }
