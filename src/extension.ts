@@ -3,7 +3,7 @@ import { execSync, spawnSync } from "node:child_process";
 import { env } from "node:process";
 import { statSync, mkdirSync } from "node:fs";
 
-const SUPPORTED_LANGUAGE_IDS = ["c", "cpp", "code-text-binary"];
+const SUPPORTED_LANGUAGE_IDS = ["c", "cpp", "code-text-binary", "rust"];
 
 export function activate(context: vscode.ExtensionContext) {
   console.log("Initializing Disaster...");
@@ -20,6 +20,8 @@ export function activate(context: vscode.ExtensionContext) {
   const CFLAGS = env.CFLAGS || "-g";
   const CXX = env.CXX || "c++";
   const CXXFLAGS = env.CXXFLAGS || "-g";
+  const RUSTC = env.RUSTC || "rustc";
+  const RUSTFLAGS = env.RUSTFLAGS || "-g";
   console.log("Environment variables initialized");
 
   let disposable = vscode.commands.registerCommand(
@@ -58,6 +60,8 @@ export function activate(context: vscode.ExtensionContext) {
         compileCommand = `${CC} ${CFLAGS} -c ${file.fileName} -o ${objectPath}`;
       } else if (file.languageId === "cpp") {
         compileCommand = `${CXX} ${CXXFLAGS} -c ${file.fileName} -o ${objectPath}`;
+      } else if (file.languageId === "rust") {
+        compileCommand = `${RUSTC} ${RUSTFLAGS} --emit=obj ${file.fileName} -o ${objectPath}`;
       }
 
       if (compileCommand) {
