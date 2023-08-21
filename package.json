@@ -12,6 +12,53 @@
   "activationEvents": [],
   "main": "./out/extension.js",
   "contributes": {
+    "configuration": [
+      {
+        "title": "Disaster",
+        "properties": {
+          "disaster.objdump": {
+            "type": "string",
+            "default": "objdump",
+            "description": "Path to objdump"
+          },
+          "disaster.objdumpFlags": {
+            "type": "string",
+            "default": "--disassemble --reloc --demangle=auto --disassembler-options=intel --line-numbers --no-show-raw-insn --source",
+            "description": "Flags to pass to objdump"
+          },
+          "disaster.cCompiler": {
+            "type": "string",
+            "default": "cc",
+            "description": "Path to the C compiler to use"
+          },
+          "disaster.cFlags": {
+            "type": "string",
+            "default": "-g",
+            "description": "Flags to pass to the C compiler"
+          },
+          "disaster.cppCompiler": {
+            "type": "string",
+            "default": "c++",
+            "description": "Path to the C++ compiler to use"
+          },
+          "disaster.cppFlags": {
+            "type": "string",
+            "default": "-g",
+            "description": "Flags to pass to the C++ compiler"
+          },
+          "disaster.rustCompiler": {
+            "type": "string",
+            "default": "rustc",
+            "description": "Path to the Rust compiler to use"
+          },
+          "disaster.rustFlags": {
+            "type": "string",
+            "default": "-g",
+            "description": "Flags to pass to the Rust compiler"
+          }
+        }
+      }
+    ],
     "commands": [
       {
         "command": "disaster.disassembleCurrentFile",

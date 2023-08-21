@@ -16,13 +16,19 @@ export function activate(context: vscode.ExtensionContext) {
     console.log(`Using ${TMPDIR} directory for temporary files`);
   }
 
-  const CC = env.CC || "cc";
-  const CFLAGS = env.CFLAGS || "-g";
-  const CXX = env.CXX || "c++";
-  const CXXFLAGS = env.CXXFLAGS || "-g";
-  const RUSTC = env.RUSTC || "rustc";
-  const RUSTFLAGS = env.RUSTFLAGS || "-g";
-  console.log("Environment variables initialized");
+  const config = vscode.workspace.getConfiguration("disaster");
+
+  const OBJDUMP = config.get("objdump") as string;
+  const OBJDUMP_FLAGS = config.get("objdumpFlags") as string;
+
+  const CC = config.get("cCompiler") as string;
+  const CFLAGS = config.get("cFlags") as string;
+  const CXX = config.get("cppCompiler") as string;
+  const CXXFLAGS = config.get("cppFlags") as string;
+  const RUSTC = config.get("rustCompiler") as string;
+  const RUSTFLAGS = config.get("rustFlags") as string;
+
+  console.log("Config loaded!");
 
   let disposable = vscode.commands.registerCommand(
     "disaster.disassembleCurrentFile",
@@ -153,7 +159,7 @@ export function activate(context: vscode.ExtensionContext) {
   }
 
   function disassemble(objectPath: string) {
-    const cmd = `objdump --disassemble --demangle=auto  -M intel --line-numbers --no-show-raw-insn -S ${objectPath}`;
+    const cmd = `${OBJDUMP} ${OBJDUMP_FLAGS} ${objectPath}`;
     return execSync(cmd).toString();
   }
 }
