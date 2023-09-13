@@ -18,21 +18,18 @@ export function activate(context: vscode.ExtensionContext) {
 
   const config = vscode.workspace.getConfiguration("disaster");
 
-  const OBJDUMP = config.get("objdump") as string;
-  const OBJDUMP_FLAGS = config.get("objdumpFlags") as string;
-
-  const CC = config.get("cCompiler") as string;
-  const CFLAGS = config.get("cFlags") as string;
-  const CXX = config.get("cppCompiler") as string;
-  const CXXFLAGS = config.get("cppFlags") as string;
-  const RUSTC = config.get("rustCompiler") as string;
-  const RUSTFLAGS = config.get("rustFlags") as string;
-
   console.log("Config loaded!");
 
   let disposable = vscode.commands.registerCommand(
     "disaster.disassembleCurrentFile",
     async () => {
+      const CC = config.get("cCompiler") as string;
+      const CFLAGS = config.get("cFlags") as string;
+      const CXX = config.get("cppCompiler") as string;
+      const CXXFLAGS = config.get("cppFlags") as string;
+      const RUSTC = config.get("rustCompiler") as string;
+      const RUSTFLAGS = config.get("rustFlags") as string;
+
       const messageChannel = vscode.window.createOutputChannel("Disaster");
 
       // get info about the current file
@@ -159,6 +156,8 @@ export function activate(context: vscode.ExtensionContext) {
   }
 
   function disassemble(objectPath: string) {
+    const OBJDUMP = config.get("objdump") as string;
+    const OBJDUMP_FLAGS = config.get("objdumpFlags") as string;
     const cmd = `${OBJDUMP} ${OBJDUMP_FLAGS} ${objectPath}`;
     return execSync(cmd).toString();
   }
